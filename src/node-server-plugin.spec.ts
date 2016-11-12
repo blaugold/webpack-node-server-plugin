@@ -1,3 +1,4 @@
+/* tslint:disable */
 import { _NodeServerPlugin } from './node-server-plugin';
 import { expect } from 'chai';
 import * as sinon from 'sinon';

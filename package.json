@@ -6,7 +6,8 @@
   "scripts": {
     "pretest": "npm run build",
     "test": "webpack --config webpack.test.js && testing/run_e2e_tests.sh",
-    "build": "tsc && cpy README.md package.json release"
+    "build": "tsc && cpy README.md package.json release",
+    "dev": "webpack --config webpack.test.js -w"
   },
   "repository": {
     "type": "git",

@@ -15,15 +15,16 @@ import { ChildProcessModule } from './child_process';
  * If the script is not able to stay up for a certain time (default: 10 seconds), the plugin will
  * give up restarting it after some set number of tries (default: 3 times).
  */
+// tslint:disable-next-line
 export class _NodeServerPlugin {
+
+  /** @internal */
+  retryCount: number                = 0;
 
   private childProcess: ChildProcess;
   private watchMode: boolean;
   private bundlePath: string;
   private retries: number;
-
-  /** @internal */
-  retryCount: number                = 0;
   private minUpTime: number;
   private minUpTimeTimeout: Timer   = null;
   private reachedMinUpTime: boolean = false;
@@ -34,7 +35,7 @@ export class _NodeServerPlugin {
    * @param config.minUpTime {number} - Times in seconds script has to stay up the reset retries.
    */
   constructor(private process: ProcessModule,
-              private child_process: ChildProcessModule,
+              private child_process: ChildProcessModule, // tslint:disable-line
               config: {
                 retries?: number
                 minUpTime?: number
