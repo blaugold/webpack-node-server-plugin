@@ -1,0 +1,52 @@
+{
+  "name": "webpack-node-server-plugin",
+  "version": "0.1.0",
+  "description": "Webpack plugin which restarts node script with every compilation.",
+  "main": "index.js",
+  "scripts": {
+    "pretest": "npm run build",
+    "test": "webpack --config webpack.test.js && testing/run_e2e_tests.sh",
+    "build": "tsc && cpy README.md package.json release"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/blaugold/webpack-node-server-plugin.git"
+  },
+  "keywords": [
+    "webpack",
+    "node",
+    "server",
+    "plugin",
+    "restart",
+    "live",
+    "reload"
+  ],
+  "author": "Gabriel Terwesten <gabriel@terwesten.net>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/blaugold/webpack-node-server-plugin/issues"
+  },
+  "homepage": "https://github.com/blaugold/webpack-node-server-plugin#readme",
+  "devDependencies": {
+    "@types/chai": "^3.4.34",
+    "@types/mocha": "^2.2.32",
+    "@types/node": "^6.0.46",
+    "@types/sinon": "^1.16.31",
+    "awesome-typescript-loader": "^2.2.4",
+    "chai": "^3.5.0",
+    "cpy-cli": "^1.0.1",
+    "istanbul": "^0.4.5",
+    "mocha": "^3.1.2",
+    "remap-istanbul": "^0.7.0",
+    "rxjs": "latest",
+    "sinon": "^1.17.6",
+    "source-map-support": "^0.4.6",
+    "sourcemap-istanbul-instrumenter-loader": "^0.2.0",
+    "tslint": "^3.15.1",
+    "tslint-loader": "^2.1.5",
+    "typescript": "^2.0.9",
+    "webpack": "2.1.0-beta.25",
+    "webpack-mocha-plugin": "^0.1.1",
+    "webpack-node-externals": "^1.5.4"
+  }
+}

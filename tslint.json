@@ -1,0 +1,14 @@
+{
+  "extends": "tslint:recommended",
+  "rules": {
+    "quotemark": [
+      true,
+      "single",
+      "avoid-escape"
+    ],
+    "interface-name": false,
+    "no-console": false,
+    "member-access": false,
+    "align": false
+  }
+}
