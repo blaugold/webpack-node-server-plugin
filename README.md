@@ -14,7 +14,7 @@ module.exports = {
     target: 'node',
     entry: './server.js',
     output: {
-        path: '.tmp/dev,
+        path: '.tmp/dev',
         filename: '[name].bundle.js'
     },
     resolve: {
