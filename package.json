@@ -10,7 +10,8 @@
     "test": "webpack --config webpack.test.js && testing/run_e2e_tests.sh",
     "build": "tsc && cpy README.md package.json release",
     "dev": "webpack --config webpack.test.js -w",
-    "lint": "tslint -c tslint.json src/**/*.ts"
+    "lint": "tslint -c tslint.json src/**/*.ts",
+    "release": "standard-version"
   },
   "repository": {
     "type": "git",
@@ -45,6 +46,7 @@
     "sinon": "^1.17.6",
     "source-map-support": "^0.4.6",
     "sourcemap-istanbul-instrumenter-loader": "^0.2.0",
+    "standard-version": "^3.0.0",
     "tslint": "^3.15.1",
     "tslint-loader": "^2.1.5",
     "typescript": "^2.0.9",
