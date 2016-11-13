@@ -4,10 +4,13 @@
   "description": "Webpack plugin which restarts node script with every compilation.",
   "main": "index.js",
   "scripts": {
-    "pretest": "npm run build",
+    "pree2e": "npm run build",
+    "e2e": "testing/run_e2e_tests.sh",
+    "pretest": "npm run lint && npm run build",
     "test": "webpack --config webpack.test.js && testing/run_e2e_tests.sh",
     "build": "tsc && cpy README.md package.json release",
-    "dev": "webpack --config webpack.test.js -w"
+    "dev": "webpack --config webpack.test.js -w",
+    "lint": "tslint -c tslint.json src/**/*.ts"
   },
   "repository": {
     "type": "git",
@@ -39,7 +42,6 @@
     "istanbul": "^0.4.5",
     "mocha": "^3.1.2",
     "remap-istanbul": "^0.7.0",
-    "rxjs": "latest",
     "sinon": "^1.17.6",
     "source-map-support": "^0.4.6",
     "sourcemap-istanbul-instrumenter-loader": "^0.2.0",
@@ -49,5 +51,8 @@
     "webpack": "2.1.0-beta.25",
     "webpack-mocha-plugin": "^0.1.1",
     "webpack-node-externals": "^1.5.4"
+  },
+  "dependencies": {
+    "@reactivex/rxjs": "^5.0.0-rc.2"
   }
 }

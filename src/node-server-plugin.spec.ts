@@ -1,8 +1,9 @@
 /* tslint:disable */
-import { _NodeServerPlugin } from './node-server-plugin';
+import { _NodeServerPlugin, WebpackStats } from './node-server-plugin';
 import { expect } from 'chai';
 import * as sinon from 'sinon';
-import { Subject } from 'rxjs';
+import { Subject } from '@reactivex/rxjs';
+import { SinonSpy, SinonMock } from 'sinon'
 
 class CompilerMock {
   runSyp   = sinon.spy();
@@ -55,7 +56,9 @@ class ChildProcessMock {
   $nextEvent = new Subject<{ event: string, message: any }>();
 
   on(event, cb) {
-    this.$nextEvent.filter(e => e.event === event).subscribe(e => cb(e.message));
+    this.$nextEvent
+      .filter(e => e.event === event)
+      .subscribe(e => cb(e.message));
   }
 
   kill(signal) {
@@ -66,23 +69,24 @@ class ChildProcessMock {
 const getMockStats = () => ({
   compilation: {
     assets: {
-      'test.bundle.js':     { existsAt: '/dir' },
-      'test.bundle.js.map': { existsAt: '/dir' },
+      'test.bundle.js':     { existsAt: '/dir/test.bundle.js' },
+      'test.bundle.js.map': { existsAt: '/dir/test.bundle.js.map' },
     },
   },
 });
 
 let child_process;
-let child_processMock;
+let child_processMock: SinonMock;
 
 let process;
-let nextTickSpy;
-let exitSpy;
+let nextTickSpy: SinonSpy;
+let exitSpy: SinonSpy;
 
 let runCompiler;
 let watchCompiler;
 
-let stats;
+let stats: WebpackStats;
+let plugin: _NodeServerPlugin;
 
 describe('NodeServerPlugin', () => {
 
@@ -97,7 +101,14 @@ describe('NodeServerPlugin', () => {
     runCompiler   = new CompilerMock(false);
     watchCompiler = new CompilerMock(true);
 
-    stats = getMockStats();
+    stats = getMockStats() as any;
+
+    plugin = new _NodeServerPlugin(process as any, child_process as any, {
+      compilationDebounce: 0,
+      retries:             1,
+      retryDelay:          0,
+      minUpTime:           1
+    });
   });
 
   afterEach(() => {
@@ -112,78 +123,62 @@ describe('NodeServerPlugin', () => {
     expect(watchCompiler.watchSyp.calledOnce).to.be.true;
   });
 
-  it('should use first js file in assets', () => {
-    const plugin           = new _NodeServerPlugin(process, child_process);
-    const childProcessMock = new ChildProcessMock();
+  describe('child process observable', () => {
+    it('should emit when process starts', () => {
+      const childProcess = new ChildProcessMock();
+      child_processMock.expects('spawn').once().returns(childProcess);
 
-    child_processMock
-      .expects('spawn')
-      .once()
-      .withArgs('node', ['/dir'], { stdio: 'inherit' })
-      .returns(childProcessMock);
+      return plugin.spawnScript('/path')
+        .mapTo('emit')
+        .do(() => setTimeout(() => childProcess.$nextEvent.next({ event: 'close', message: 0 }), 0))
+        .toPromise()
+        .then(e => expect(e).to.equal('emit'))
+    });
 
-    plugin.onDone(stats);
+    it('should emit error when process finishes with other than 0', () => {
+      const childProcess = new ChildProcessMock();
+      child_processMock.expects('spawn').once().returns(childProcess);
 
-    expect(nextTickSpy.calledOnce).to.be.true;
-
-    process.$nextTick.next();
+      return plugin.spawnScript('/path')
+        .do(() => setTimeout(() => childProcess.$nextEvent.next({ event: 'close', message: 1 }), 0))
+        .toPromise()
+        .then(() => {throw 'should not complete observable'})
+        .catch(err => expect(err).to.equals(1))
+    })
   });
 
-  it('should return exit code of script in run mode', () => {
-    const plugin = new _NodeServerPlugin(process, child_process);
-    plugin.apply(runCompiler);
-
+  it('support single run by returning exit code of script', () => {
     const childProcess = new ChildProcessMock();
+    child_processMock.expects('spawn').once().returns(childProcess);
 
-    child_processMock.expects('spawn').returns(childProcess);
+    plugin.setWatchMode(false);
 
-    plugin.onDone(stats);
-    process.$nextTick.next();
+    const res = plugin.$pipeline.toPromise()
+      .then(() => { throw 'should not complete observable' })
+      .catch(code => expect(code).to.equal(1));
 
-    childProcess.$nextEvent.next({ event: 'close', message: 1 });
+    plugin.$onDone.next(stats);
 
-    expect(exitSpy.calledWith(1)).to.be.true;
+    setTimeout(() => childProcess.$nextEvent.next({ event: 'close', message: 1 }), 0);
+
+    return res;
   });
 
-  it('should reset retry counter on new compilation', () => {
-    const plugin       = new _NodeServerPlugin(process, child_process);
-    const childProcess = new ChildProcessMock();
+  it('should support restarting script', done => {
+    const childProcess0 = new ChildProcessMock();
+    const childProcess1 = new ChildProcessMock();
+    child_processMock.expects('spawn')
+      .twice()
+      .onCall(0).returns(childProcess0)
+      .onCall(1).returns(childProcess1);
 
-    child_processMock.expects('spawn').twice().returns(childProcess);
+    plugin.setWatchMode(true);
+    plugin.$pipeline.subscribe();
+    plugin.$onDone.next(stats);
 
-    plugin.apply(watchCompiler);
-    plugin.onDone(stats);
+    setTimeout(() => childProcess0.$nextEvent.next({ event: 'close', message: 1 }), 0);
+    setTimeout(() => childProcess1.$nextEvent.next({ event: 'close', message: 1 }), 20);
 
-    process.$nextTick.next();
-
-    childProcess.$nextEvent.next({ event: 'close', message: 1 });
-
-    expect(plugin.retryCount).to.equal(1);
-
-    plugin.onDone(stats);
-
-    expect(plugin.retryCount).to.equal(0);
-  });
-
-  it('should reset retry counter after min up time reached', () => {
-    const plugin      = new _NodeServerPlugin(process, child_process);
-    const clock       = sinon.useFakeTimers();
-    plugin.retryCount = 1;
-    plugin.startUpTimeCounter();
-    // Default of 10 sec min up time
-    clock.tick(10000);
-    expect(plugin.retryCount).to.equal(0);
-    clock.restore();
-  });
-
-  it('should back of after `retries`', () => {
-    const plugin      = new _NodeServerPlugin(process, child_process);
-
-    child_processMock.expects('spawn').never();
-
-    // Default retries of 3
-    plugin.retryCount = 3;
-
-    plugin.handleCloseEvent(1)
+    setTimeout(() => done(), 40);
   })
 });

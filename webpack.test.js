@@ -46,14 +46,6 @@ module.exports = {
     },
 
     plugins: [
-        new webpack.LoaderOptionsPlugin({
-            options: {
-                tslint: {
-                    emitErrors: true,
-                    failOnHint: true
-                }
-            }
-        }),
         new webpack.BannerPlugin({
             banner: 'require("source-map-support").install();',
             raw: true,

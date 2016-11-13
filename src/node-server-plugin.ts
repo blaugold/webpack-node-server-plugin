@@ -1,7 +1,20 @@
-import { ChildProcess } from 'child_process';
-import Timer = NodeJS.Timer;
 import { ProcessModule } from './process';
 import { ChildProcessModule } from './child_process';
+import { Subject, Observable } from '@reactivex/rxjs';
+
+export interface WebpackStats {
+
+  compilation: {
+    assets: {
+      [assetName: string]: {
+        existsAt?: string;
+      }
+    }
+  };
+
+  toString(options: any): string;
+  toJson(options: any): any;
+}
 
 /**
  * Plugin which starts a node script after compilation has finished.
@@ -19,147 +32,141 @@ import { ChildProcessModule } from './child_process';
 export class _NodeServerPlugin {
 
   /** @internal */
-  retryCount: number                = 0;
+  $onDone = new Subject<WebpackStats>();
+  /** @internal */
+  $pipeline: Observable<void>;
 
-  private childProcess: ChildProcess;
   private watchMode: boolean;
-  private bundlePath: string;
   private retries: number;
+  private retryDelay: number;
   private minUpTime: number;
-  private minUpTimeTimeout: Timer   = null;
-  private reachedMinUpTime: boolean = false;
+  private compilationDebounce: number;
 
   /**
    *
-   * @param config.retried {number} - Times the plugin tries to restart the script.
-   * @param config.minUpTime {number} - Times in seconds script has to stay up the reset retries.
+   * @param config.retries - Times the plugin tries to restart the script (3).
+   * @param config.minUpTime - Times in seconds script has to stay up the reset retries (10).
+   * @param config.retryDelay - Delay restring script after crash in seconds (1).
+   * @param config.compilationDebounce - Debounce compilation emits by time in milli seconds (300).
    */
   constructor(private process: ProcessModule,
               private child_process: ChildProcessModule, // tslint:disable-line
               config: {
                 retries?: number
+                retryDelay?: number
                 minUpTime?: number
+                compilationDebounce?: number;
               } = {}) {
-    this.retries   = config.retries || 3;
-    this.minUpTime = config.minUpTime || 10;
+    this.initFromConfig(config);
+    this.setupPipeline();
+  }
+
+  initFromConfig(config: any): void {
+    this.retries             = defaultNumber(config.retries, 3);
+    this.retryDelay          = defaultNumber(config.retryDelay, 1);
+    this.minUpTime           = defaultNumber(config.minUpTime, 10);
+    this.compilationDebounce = defaultNumber(config.compilationDebounce, 300);
+  }
+
+  setupPipeline(): void {
+    this.$pipeline = this.$onDone
+      .debounceTime(this.compilationDebounce)
+      .let(this.getScriptPath())
+
+      // Do nothing if compilation produced no executable.
+      .filter(scriptPath => !!scriptPath)
+      .switchMap<string, void>(scriptPath => this.runScript(scriptPath));
   }
 
   apply(compiler) {
 
     // Register callback to start server when compiler is done.
-    compiler.plugin('done', this.onDone.bind(this));
+    compiler.plugin('done', stats => this.$onDone.next(stats));
 
     // Detect whether compiler is in watch mode.
     compiler.plugin('run', (_, cb) => {
-      this.watchMode = false;
+      this.setWatchMode(false);
       cb();
     });
     compiler.plugin('watch-run', (_, cb) => {
-      this.watchMode = true;
+      this.setWatchMode(true);
       cb();
     });
+
+    // tslint:disable-next-line
+    this.$pipeline.subscribe(() => {}, code => this.process.exit(code));
   }
 
-  onDone(stats) {
-    // Kill possible outdated version of server.
-    this.killProcess();
+  setWatchMode(watch: boolean) {
+    this.watchMode = watch;
+  }
 
-    // Reset retry counter.
-    this.retryCount = 0;
+  runScript(scriptPath: string): Observable<void> {
+    const $exitAfterMinUpTime = new Subject();
 
-    // Resolve bundle by using name of first asset which ends in .js.
-    // TODO multiple assets (choose one in config or start multiple)
-    const assets     = stats.compilation.assets;
-    const bundleName = Object.keys(assets).filter(fileName => fileName.match(/\.js$/))[0];
-    this.bundlePath  = assets[bundleName].existsAt;
+    return this.spawnScript(scriptPath)
+      // After minUpTime notify of a successful try, timer will be canceled when script fails.
+      .switchMapTo(Observable.timer(this.minUpTime * 1000))
+      .do(() => $exitAfterMinUpTime.next(true))
+      .retryWhen(errors => errors
+        // Notify of a failed try
+        .do(() => $exitAfterMinUpTime.next(false))
+        .let(this.shouldRetry($exitAfterMinUpTime))
 
-    // Spawn new server process in next turn to let all compiler callbacks finish.
-    this.process.nextTick(() => {
-      console.log('\n');
-      this.spawnProcess();
+        // Delay next try
+        .delayWhen(() => Observable.timer(this.retryDelay * 1000))
+      )
+      // Process has run out of retries so either do nothing or stop observable by throwing.
+      .catch<any, void>(err => this.watchMode ? Observable.empty() : Observable.throw(err));
+  }
+
+  shouldRetry($exitAfterMinUpTime: Observable<boolean>): (errors: Observable<number>) => Observable<void> {
+    const hasRetriesLeft = $exitAfterMinUpTime
+      .scan((retriesLeft, success) => success ? this.retries : retriesLeft - 1, this.retries)
+      .map(retriesLeft => retriesLeft >= 0);
+
+    return errors => errors
+      .withLatestFrom(hasRetriesLeft)
+      // Throw if not in watch mode or no retries left.
+      .do(([err, retry]) => {
+        if (!this.watchMode || !retry) {
+          throw err;
+        }
+      })
+      .mapTo<any, void>(void 0);
+  }
+
+  getScriptPath(): (statsObs: Observable<WebpackStats>) => Observable<string> {
+    return statsObs => statsObs
+      .map(stats => stats.compilation.assets)
+      .map(assets => {
+        const bundleName = Object.keys(assets).filter(fileName => fileName.match(/\.js$/))[0];
+        return assets[bundleName];
+      })
+      .map(asset => asset.existsAt);
+  }
+
+  spawnScript(path: string): Observable<any> {
+    return new Observable(obs => {
+      const childProcess = this.child_process.spawn('node', [path], { stdio: 'inherit' });
+      childProcess.on('close', code => {
+        if (code !== 0) {
+          obs.error(code);
+          return;
+        }
+
+        obs.complete();
+      });
+      obs.next();
+
+      return () => childProcess.kill('SIGTERM');
     });
   }
+}
 
-  spawnProcess() {
-    // If server fails to stay up after set retries wait for next compilation.
-    if (this.hasRetriesLeft()) {
-
-      if (this.retryCount === 0) {
-        console.log('NodeServerPlugin: Starting server');
-      }
-      else {
-        console.log(`NodeServerPlugin: Retrying to start server (count: ${this.retryCount})`);
-      }
-
-      // Spawn bundle as node process and inherit stdio to make output visible.
-      this.childProcess = this.child_process.spawn('node', [this.bundlePath], { stdio: 'inherit' });
-      this.startUpTimeCounter();
-
-      // Handle end of process.
-      this.childProcess.on('close', this.handleCloseEvent.bind(this));
-    }
+function defaultNumber(option, def): number {
+  if (option === undefined) {
+    return def;
   }
-
-  handleCloseEvent(code: number) {
-    if (code !== 0) {
-      this.clearUpTimeCounter();
-      console.error(`NodeServerPlugin: Server exited with code ${code}`);
-
-      if (!this.hasRetriesLeft()) {
-        console.log(
-          `NodeServerPlugin: Baking of after ${this.retryCount} failed tries.`
-        );
-      }
-    }
-
-    // If this was a single run exit process with code returned by process.
-    // Useful to detect whether server crashed in bash command.
-    if (!this.watchMode) {
-      this.process.exit(code);
-    }
-
-    // If code 0 is returned server exited without error so don't retry.
-    else if (code !== 0) {
-
-      // Kick of a new try to get server running.
-      this.spawnProcess();
-    }
-  }
-
-  /** @internal */
-  startUpTimeCounter() {
-    this.minUpTimeTimeout = setTimeout(() => {
-      this.reachedMinUpTime = true;
-      this.retryCount       = 0;
-    }, this.minUpTime * 1000);
-  }
-
-  /** @internal */
-  clearUpTimeCounter() {
-    // Clear timeout.
-    if (this.minUpTimeTimeout !== null) {
-      clearTimeout(this.minUpTimeTimeout);
-      this.minUpTimeTimeout = null;
-    }
-
-    // Increment retry counter if script did not stay up.
-    if (!this.reachedMinUpTime) {
-      this.retryCount++;
-    }
-
-    // Reset `reached time out` flag
-    this.reachedMinUpTime = false;
-  }
-
-  private hasRetriesLeft(): boolean {
-    return this.retryCount < this.retries;
-  }
-
-  private killProcess() {
-    if (this.childProcess) {
-      console.log('NodeServerPlugin: Stopping server');
-      this.childProcess.kill('SIGTERM');
-      this.childProcess = null;
-    }
-  }
+  return option;
 }

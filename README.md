@@ -30,9 +30,13 @@ module.exports = {
 ```
 new WebpackNodeServerPlugin({
     retries?: number = 3;
+    retryDelay?: number = 1;
     minUpTime?: number = 10;
+    compilationDebounce?: number = 300;
 })
 ```
 
-`number` of times script is restarted if exit code is not 0.
+`retries` number of times script is restarted if exit code is not 0.
+`retryDelay` delay in seconds between script exiting and restarting it.
 `minUpTime` seconds script has to stay up before retry counter is reset.
+`compilationDebounce` milli seconds by which compilation events are debounced.
