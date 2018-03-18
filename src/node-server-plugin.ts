@@ -41,6 +41,7 @@ export class _NodeServerPlugin {
   private retryDelay: number;
   private minUpTime: number;
   private compilationDebounce: number;
+  private cwd?: string;
 
   /**
    *
@@ -48,6 +49,7 @@ export class _NodeServerPlugin {
    * @param config.minUpTime - Times in seconds script has to stay up the reset retries (10).
    * @param config.retryDelay - Delay restring script after crash in seconds (1).
    * @param config.compilationDebounce - Debounce compilation emits by time in milli seconds (300).
+   * @param config.cwd - Directory in which node process will spawn (cwd)
    */
   constructor(private process: ProcessModule,
               private child_process: ChildProcessModule, // tslint:disable-line
@@ -56,6 +58,7 @@ export class _NodeServerPlugin {
                 retryDelay?: number
                 minUpTime?: number
                 compilationDebounce?: number;
+                cwd?: string;
               } = {}) {
     this.initFromConfig(config);
     this.setupPipeline();
@@ -66,6 +69,7 @@ export class _NodeServerPlugin {
     this.retryDelay          = defaultNumber(config.retryDelay, 1);
     this.minUpTime           = defaultNumber(config.minUpTime, 10);
     this.compilationDebounce = defaultNumber(config.compilationDebounce, 300);
+    this.cwd = config.cwd;
   }
 
   setupPipeline(): void {
@@ -104,7 +108,7 @@ export class _NodeServerPlugin {
   runScript(scriptPath: string): Observable<void> {
     const $exitAfterMinUpTime = new Subject();
 
-    return this.spawnScript(scriptPath)
+    return this.spawnScript(scriptPath, this.cwd)
       // After minUpTime notify of a successful try, timer will be canceled when script fails.
       .switchMapTo(Observable.timer(this.minUpTime * 1000))
       .do(() => $exitAfterMinUpTime.next(true))
@@ -146,9 +150,9 @@ export class _NodeServerPlugin {
       .map(asset => asset.existsAt);
   }
 
-  spawnScript(path: string): Observable<any> {
+  spawnScript(path: string, cwd?: string): Observable<any> {
     return new Observable(obs => {
-      const childProcess = this.child_process.spawn('node', [path], { stdio: 'inherit' });
+      const childProcess = this.child_process.spawn('node', [path], { stdio: 'inherit', cwd });
       childProcess.on('close', code => {
         if (code !== 0) {
           obs.error(code);
