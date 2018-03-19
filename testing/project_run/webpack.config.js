@@ -1,5 +1,5 @@
 const path = require('path');
-const NodeServerPlugin = require('../../release').NodeServerPlugin;
+const NodeServerPlugin = require('webpack-node-server-plugin').NodeServerPlugin;
 
 module.exports = {
 

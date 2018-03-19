@@ -1,0 +1,9 @@
+{
+  "name": "project_run",
+  "author": "Gabriel Terwesten <gabriel@terwesten.net>",
+  "dependencies": {
+    "webpack": "^4.1.1",
+    "webpack-cli": "^2.0.12",
+    "webpack-node-server-plugin": "file:../../release"
+  }
+}
