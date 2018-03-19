@@ -1,5 +1,6 @@
-import { Subject } from '@reactivex/rxjs';
 import { expect } from 'chai';
+import { Subject } from 'rxjs';
+import { filter, mapTo, take, tap } from 'rxjs/operators';
 import * as sinon from 'sinon';
 import { SinonMock, SinonSpy } from 'sinon';
 /* tslint:disable */
@@ -37,7 +38,7 @@ class ProcessModuleMock {
   $nextTick = new Subject();
 
   nextTick(cb: () => void) {
-    this.$nextTick.take(1).subscribe(() => cb());
+    this.$nextTick.pipe(take(1)).subscribe(() => cb());
   }
 
   exit(code: number) {
@@ -52,12 +53,19 @@ class ChildProcessModuleMock {
   }
 }
 
+interface Event {
+  event: string;
+  message: any;
+}
+
 class ChildProcessMock {
-  $nextEvent = new Subject<{ event: string, message: any }>();
+
+  $nextEvent = new Subject<Event>();
 
   on(event, cb) {
-    this.$nextEvent
-      .filter(e => e.event === event)
+    this.$nextEvent.pipe(
+      filter<Event>(e => e.event === event)
+    )
       .subscribe(e => cb(e.message));
   }
 
@@ -129,9 +137,12 @@ describe('NodeServerPlugin', () => {
       const childProcess = new ChildProcessMock();
       child_processMock.expects('spawn').once().returns(childProcess);
 
-      return plugin.spawnScript(getMockStats())
-        .mapTo('emit')
-        .do(() => setTimeout(() => childProcess.$nextEvent.next({ event: 'close', message: 0 }), 0))
+      return plugin.spawnScript(getMockStats()).pipe(
+        mapTo('emit'),
+        tap(() => setTimeout(() => childProcess.$nextEvent
+          .next({ event: 'close', message: 0 }), 0)
+        )
+      )
         .toPromise()
         .then(e => expect(e).to.equal('emit'))
     });
@@ -140,8 +151,11 @@ describe('NodeServerPlugin', () => {
       const childProcess = new ChildProcessMock();
       child_processMock.expects('spawn').once().returns(childProcess);
 
-      return plugin.spawnScript(getMockStats())
-        .do(() => setTimeout(() => childProcess.$nextEvent.next({ event: 'close', message: 1 }), 0))
+      return plugin.spawnScript(getMockStats()).pipe(
+        tap(() => setTimeout(() => childProcess.$nextEvent
+          .next({ event: 'close', message: 1 }), 0)
+        )
+      )
         .toPromise()
         .then(() => {throw 'should not complete observable'})
         .catch(err => expect(err).to.equals(1))

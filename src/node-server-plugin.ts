@@ -1,5 +1,21 @@
-import { Observable, Subject } from '@reactivex/rxjs';
 import { SpawnOptions } from 'child_process';
+import { Observable } from 'rxjs/Observable';
+import { empty } from 'rxjs/observable/empty';
+import { _throw } from 'rxjs/observable/throw';
+import { timer } from 'rxjs/observable/timer';
+import {
+  catchError,
+  debounceTime,
+  delayWhen,
+  map,
+  retryWhen,
+  scan,
+  switchMap,
+  switchMapTo,
+  tap,
+  withLatestFrom,
+} from 'rxjs/operators';
+import { Subject } from 'rxjs/Subject';
 import { ChildProcessModule } from './child_process';
 import { NodeServerPluginConfig, ScriptPathResolver } from './config';
 import { ProcessModule } from './process';
@@ -38,7 +54,7 @@ export class _NodeServerPlugin {
   /** @internal */
   $onDone = new Subject<WebpackStats>();
   /** @internal */
-  $pipeline: Observable<void>;
+  $pipeline: Observable<{}>;
 
   private watchMode: boolean;
   private retries: number;
@@ -79,9 +95,10 @@ export class _NodeServerPlugin {
   }
 
   setupPipeline(): void {
-    this.$pipeline = this.$onDone
-      .debounceTime(this.compilationDebounce)
-      .switchMap(stats => this.runScript(stats));
+    this.$pipeline = this.$onDone.pipe(
+      debounceTime(this.compilationDebounce),
+      switchMap((stats: WebpackStats) => this.runScript(stats))
+    );
   }
 
   apply(compiler) {
@@ -107,39 +124,42 @@ export class _NodeServerPlugin {
     this.watchMode = watch;
   }
 
-  runScript(stats: WebpackStats): Observable<void> {
+  runScript(stats: WebpackStats): Observable<{}> {
     const $exitAfterMinUpTime = new Subject();
 
-    return this.spawnScript(stats)
-    // After minUpTime notify of a successful try, timer will be canceled when script fails.
-      .switchMapTo(Observable.timer(this.minUpTime * 1000))
-      .do(() => $exitAfterMinUpTime.next(true))
-      .retryWhen(errors => errors
+    return this.spawnScript(stats).pipe(
+      // After minUpTime notify of a successful try, timer will be canceled when script fails.
+      switchMapTo(timer(this.minUpTime * 1000)),
+      tap(() => $exitAfterMinUpTime.next(true)),
+      retryWhen(errors => errors.pipe(
         // Notify of a failed try
-          .do(() => $exitAfterMinUpTime.next(false))
-          .let(this.shouldRetry($exitAfterMinUpTime))
-
-          // Delay next try
-          .delayWhen(() => Observable.timer(this.retryDelay * 1000))
-      )
+        tap(() => $exitAfterMinUpTime.next(false)),
+        this.shouldRetry($exitAfterMinUpTime),
+        // Delay next try
+        delayWhen(() => timer(this.retryDelay * 1000))
+      )),
       // Process has run out of retries so either do nothing or stop observable by throwing.
-      .catch<any, void>(err => this.watchMode ? Observable.empty() : Observable.throw(err));
+      catchError(err => this.watchMode ? empty() : _throw(err))
+    );
   }
 
-  shouldRetry($exitAfterMinUpTime: Observable<boolean>): (errors: Observable<number>) => Observable<void> {
-    const hasRetriesLeft = $exitAfterMinUpTime
-      .scan((retriesLeft, success) => success ? this.retries : retriesLeft - 1, this.retries)
-      .map(retriesLeft => retriesLeft >= 0);
+  shouldRetry($exitAfterMinUpTime: Observable<boolean>): (errors: Observable<number>) => Observable<{}> {
+    const hasRetriesLeft = $exitAfterMinUpTime.pipe(
+      scan<boolean, number>((retriesLeft, success) => success
+        ? this.retries
+        : retriesLeft - 1, this.retries
+      ),
+      map(retriesLeft => retriesLeft >= 0)
+    );
 
-    return errors => errors
-      .withLatestFrom(hasRetriesLeft)
-      // Throw if not in watch mode or no retries left.
-      .do(([err, retry]) => {
+    return errors => errors.pipe(
+      withLatestFrom(hasRetriesLeft),
+      tap(([err, retry]) => {
         if (!this.watchMode || !retry) {
           throw err;
         }
-      })
-      .mapTo<any, void>(void 0);
+      }),
+    );
   }
 
   spawnScript(stats: WebpackStats): Observable<any> {
