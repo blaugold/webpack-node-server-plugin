@@ -1,3 +1,4 @@
+import { NodeServerPluginConfig } from './config';
 import { ProcessModule } from './process';
 import { ChildProcessModule } from './child_process';
 import { Subject, Observable } from '@reactivex/rxjs';
@@ -42,21 +43,9 @@ export class _NodeServerPlugin {
   private minUpTime: number;
   private compilationDebounce: number;
 
-  /**
-   *
-   * @param config.retries - Times the plugin tries to restart the script (3).
-   * @param config.minUpTime - Times in seconds script has to stay up the reset retries (10).
-   * @param config.retryDelay - Delay restring script after crash in seconds (1).
-   * @param config.compilationDebounce - Debounce compilation emits by time in milli seconds (300).
-   */
   constructor(private process: ProcessModule,
               private child_process: ChildProcessModule, // tslint:disable-line
-              config: {
-                retries?: number
-                retryDelay?: number
-                minUpTime?: number
-                compilationDebounce?: number;
-              } = {}) {
+              config: NodeServerPluginConfig = {}) {
     this.initFromConfig(config);
     this.setupPipeline();
   }
@@ -172,19 +161,9 @@ function defaultNumber(option, def): number {
 }
 
 export class NodeServerPlugin extends _NodeServerPlugin {
-  /**
-   * Default for each option in brackets.
-   * @param config.retries - Times the plugin tries to restart the script (3).
-   * @param config.minUpTime - Times in seconds script has to stay up the reset retries (10).
-   * @param config.retryDelay - Delay restring script after crash in seconds (1).
-   * @param config.compilationDebounce - Debounce compilation emits by time in milli seconds (300).
-   */
-  constructor(config: {
-    retries?: number
-    retryDelay?: number
-    minUpTime?: number
-    compilationDebounce?: number;
-  } = {}) {
+
+  constructor(config: NodeServerPluginConfig = {}) {
     super(new ProcessModule(), new ChildProcessModule(), config);
   }
+
 }
