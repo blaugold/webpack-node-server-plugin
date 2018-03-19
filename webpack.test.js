@@ -4,51 +4,55 @@ const WebpackMochaPlugin = require('webpack-mocha-plugin');
 const path = require('path');
 
 module.exports = {
-    target: 'node',
 
-    entry: {
-        test: './test.bundle.ts'
-    },
+  mode: 'development',
 
-    output: {
-        path: path.resolve('.tmp/test'),
-        filename: '[name].bundle.js'
-    },
+  target: 'node',
 
-    resolve: {
-        extensions: ['.js', '.ts']
-    },
+  entry: {
+    test: './test.bundle.ts'
+  },
 
-    devtool: 'inline-source-map',
+  output: {
+    path: path.resolve('.tmp/test'),
+    filename: '[name].bundle.js'
+  },
 
-    externals: [nodeExternals()],
+  resolve: {
+    extensions: ['.js', '.ts']
+  },
 
-    module: {
-        rules: [
-            {
-                test: /\.ts$/,
-                loader: 'awesome-typescript-loader'
-            },
-            {
-                enforce: 'post',
-                test: /\.(js|ts)$/,
-                loader: 'sourcemap-istanbul-instrumenter-loader',
-                exclude: /\.(spec).(js|ts)/,
-                query: {
-                    'force-sourcemap': true
-                }
-            }
-        ]
-    },
+  devtool: 'inline-source-map',
 
-    plugins: [
-        new webpack.BannerPlugin({
-            banner: 'require("source-map-support").install();',
-            raw: true,
-            entryOnly: true
-        }),
-        new WebpackMochaPlugin({
-            codeCoverage: true
-        })
+  externals: [nodeExternals()],
+
+  module: {
+    rules: [
+      {
+        test: /\.ts$/,
+        loader: 'awesome-typescript-loader'
+      },
+      {
+        enforce: 'post',
+        test: /\.(js|ts)$/,
+        loader: 'sourcemap-istanbul-instrumenter-loader',
+        exclude: /\.(spec).(js|ts)/,
+        query: {
+          'force-sourcemap': true
+        }
+      }
     ]
+  },
+
+  plugins: [
+    new webpack.BannerPlugin({
+      banner: 'require("source-map-support").install();',
+      raw: true,
+      entryOnly: true
+    }),
+    new WebpackMochaPlugin({
+      codeCoverage: true
+    })
+  ]
+
 };

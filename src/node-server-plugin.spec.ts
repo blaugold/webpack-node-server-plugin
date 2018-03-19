@@ -3,35 +3,19 @@ import { Subject } from 'rxjs';
 import { filter, mapTo, take, tap } from 'rxjs/operators';
 import * as sinon from 'sinon';
 import { SinonMock, SinonSpy } from 'sinon';
+import { SyncHook } from 'tapable';
 /* tslint:disable */
+
 import { _NodeServerPlugin, WebpackStats } from './node-server-plugin';
 
 class CompilerMock {
-  runSyp   = sinon.spy();
-  watchSyp = sinon.spy();
 
-  doneCallback: (stats) => void;
+  hooks = {
+    done:     new SyncHook(),
+    run:      new SyncHook(),
+    watchRun: new SyncHook(),
+  };
 
-  constructor(private watch: boolean) {}
-
-  plugin(event: string, cb: any) {
-    switch (event) {
-      case 'done':
-        this.doneCallback = cb;
-        break;
-      case 'run':
-        if (!this.watch) {
-          cb(null, this.runSyp);
-        }
-        break;
-      case 'watch-run':
-        if (this.watch) {
-          cb(null, this.watchSyp);
-        }
-        break;
-      default:
-    }
-  }
 }
 
 class ProcessModuleMock {
@@ -41,16 +25,14 @@ class ProcessModuleMock {
     this.$nextTick.pipe(take(1)).subscribe(() => cb());
   }
 
-  exit(code: number) {
+  exit(code: number) {}
 
-  }
 }
 
 class ChildProcessModuleMock {
 
-  spawn() {
+  spawn() {}
 
-  }
 }
 
 interface Event {
@@ -64,14 +46,13 @@ class ChildProcessMock {
 
   on(event, cb) {
     this.$nextEvent.pipe(
-      filter<Event>(e => e.event === event)
+      filter<Event>(e => e.event === event),
     )
       .subscribe(e => cb(e.message));
   }
 
-  kill(signal) {
+  kill(signal) {}
 
-  }
 }
 
 const getMockStats = () => ({
@@ -81,7 +62,7 @@ const getMockStats = () => ({
       'test.bundle.js.map': { existsAt: '/dir/test.bundle.js.map' },
     },
   },
-  toJson() { return '' }
+  toJson() { return ''; },
 } as WebpackStats);
 
 let child_process;
@@ -91,8 +72,7 @@ let process;
 let nextTickSpy: SinonSpy;
 let exitSpy: SinonSpy;
 
-let runCompiler;
-let watchCompiler;
+let compiler: CompilerMock;
 
 let stats: WebpackStats;
 let plugin: _NodeServerPlugin;
@@ -103,12 +83,12 @@ describe('NodeServerPlugin', () => {
     child_process     = new ChildProcessModuleMock();
     child_processMock = sinon.mock(child_process);
 
-    process     = new ProcessModuleMock();
+    process = new ProcessModuleMock();
+
     nextTickSpy = sinon.spy(process, 'nextTick');
     exitSpy     = sinon.spy(process, 'exit');
 
-    runCompiler   = new CompilerMock(false);
-    watchCompiler = new CompilerMock(true);
+    compiler = new CompilerMock();
 
     stats = getMockStats() as any;
 
@@ -116,23 +96,32 @@ describe('NodeServerPlugin', () => {
       compilationDebounce: 0,
       retries:             1,
       retryDelay:          0,
-      minUpTime:           1
+      minUpTime:           1,
     });
   });
 
   afterEach(() => {
-    child_processMock.verify()
+    child_processMock.verify();
   });
 
-  it('support run and watch', () => {
-    new _NodeServerPlugin(process, child_process).apply(runCompiler);
-    new _NodeServerPlugin(process, child_process).apply(watchCompiler);
+  it('support run mode', () => {
+    const plugin = new _NodeServerPlugin(process, child_process);
+    plugin.apply(compiler);
+    compiler.hooks.run.call();
 
-    expect(runCompiler.runSyp.calledOnce).to.be.true;
-    expect(watchCompiler.watchSyp.calledOnce).to.be.true;
+    expect((plugin as any).watchMode).to.be.false;
+  });
+
+  it('support watch mode', () => {
+    const plugin = new _NodeServerPlugin(process, child_process);
+    plugin.apply(compiler);
+    compiler.hooks.watchRun.call();
+
+    expect((plugin as any).watchMode).to.be.true;
   });
 
   describe('child process observable', () => {
+
     it('should emit when process starts', () => {
       const childProcess = new ChildProcessMock();
       child_processMock.expects('spawn').once().returns(childProcess);
@@ -140,11 +129,11 @@ describe('NodeServerPlugin', () => {
       return plugin.spawnScript(getMockStats()).pipe(
         mapTo('emit'),
         tap(() => setTimeout(() => childProcess.$nextEvent
-          .next({ event: 'close', message: 0 }), 0)
-        )
+          .next({ event: 'close', message: 0 }), 0),
+        ),
       )
         .toPromise()
-        .then(e => expect(e).to.equal('emit'))
+        .then(e => expect(e).to.equal('emit'));
     });
 
     it('should emit error when process finishes with other than 0', () => {
@@ -153,13 +142,13 @@ describe('NodeServerPlugin', () => {
 
       return plugin.spawnScript(getMockStats()).pipe(
         tap(() => setTimeout(() => childProcess.$nextEvent
-          .next({ event: 'close', message: 1 }), 0)
-        )
+          .next({ event: 'close', message: 1 }), 0),
+        ),
       )
         .toPromise()
-        .then(() => {throw 'should not complete observable'})
-        .catch(err => expect(err).to.equals(1))
-    })
+        .then(() => {throw 'should not complete observable';})
+        .catch(err => expect(err).to.equals(1));
+    });
   });
 
   it('support single run by returning exit code of script', () => {
@@ -169,7 +158,7 @@ describe('NodeServerPlugin', () => {
     plugin.setWatchMode(false);
 
     const res = plugin.$pipeline.toPromise()
-      .then(() => { throw 'should not complete observable' })
+      .then(() => { throw 'should not complete observable'; })
       .catch(code => expect(code).to.equal(1));
 
     plugin.$onDone.next(stats);
@@ -195,5 +184,6 @@ describe('NodeServerPlugin', () => {
     setTimeout(() => childProcess1.$nextEvent.next({ event: 'close', message: 1 }), 20);
 
     setTimeout(() => done(), 40);
-  })
+  });
+
 });

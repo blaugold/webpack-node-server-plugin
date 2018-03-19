@@ -37,6 +37,7 @@
     "@types/mocha": "^2.2.32",
     "@types/node": "^9.4.7",
     "@types/sinon": "^4.3.0",
+    "@types/tapable": "^1.0.0",
     "awesome-typescript-loader": "^4.0.1",
     "chai": "^4.1.2",
     "cpy-cli": "^1.0.1",
@@ -48,13 +49,17 @@
     "source-map-support": "^0.5.4",
     "sourcemap-istanbul-instrumenter-loader": "^0.2.0",
     "standard-version": "^4.3.0",
+    "tapable": "^1.0.0",
     "tslint": "^5.9.1",
     "tslint-loader": "^3.6.0",
     "typescript": "^2.0.9",
-    "webpack": "4.1.1",
+    "webpack": "^4.1.1",
     "webpack-cli": "^2.0.12",
     "webpack-mocha-plugin": "^0.2.1",
     "webpack-node-externals": "^1.5.4"
+  },
+  "peerDependencies": {
+    "webpack": "^4.1.1"
   },
   "dependencies": {
     "rxjs": "^5.5.7"

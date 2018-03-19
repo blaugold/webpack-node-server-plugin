@@ -104,17 +104,11 @@ export class _NodeServerPlugin {
   apply(compiler) {
 
     // Register callback to start server when compiler is done.
-    compiler.plugin('done', stats => this.$onDone.next(stats));
+    compiler.hooks.done.tap('NodeServerPlugin', stats => this.$onDone.next(stats));
 
     // Detect whether compiler is in watch mode.
-    compiler.plugin('run', (_, cb) => {
-      this.setWatchMode(false);
-      cb();
-    });
-    compiler.plugin('watch-run', (_, cb) => {
-      this.setWatchMode(true);
-      cb();
-    });
+    compiler.hooks.run.tap('NodeServerPlugin', () => this.setWatchMode(false));
+    compiler.hooks.watchRun.tap('NodeServerPlugin', () => this.setWatchMode(true));
 
     // tslint:disable-next-line
     this.$pipeline.subscribe(() => {}, code => this.process.exit(code));

@@ -2,22 +2,26 @@ const path = require('path');
 const NodeServerPlugin = require('../../release').NodeServerPlugin;
 
 module.exports = {
-    target: 'node',
-    entry: './server.js',
 
-    resolve: {
-        extensions: ['.js']
-    },
+  mode: 'production',
 
-    output: {
-        path: path.resolve('.tmp/dev'),
-        filename: '[name].bundle.js'
-    },
+  target: 'node',
+  entry: './server.js',
 
-    plugins: [
-        new NodeServerPlugin({
-          commandArgs: ['--inspect'],
-          command: 'node'
-        })
-    ]
+  resolve: {
+    extensions: ['.js']
+  },
+
+  output: {
+    path: path.resolve('.tmp/dev'),
+    filename: '[name].bundle.js'
+  },
+
+  plugins: [
+    new NodeServerPlugin({
+      commandArgs: ['--inspect'],
+      command: 'node'
+    })
+  ]
+
 };
