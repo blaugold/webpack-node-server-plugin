@@ -1,0 +1,23 @@
+version: 2
+jobs:
+  build:
+    working_directory: ~/webpack-node-server-plugin
+    docker:
+      - image: node:8
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - js-cache-{{ checksum "yarn.lock" }}
+            - js-cache
+      - run:
+          name: Install js deps
+          command: yarn
+      - save_cache:
+          key: js-cache-{{ checksum "yarn.lock" }}
+          paths:
+            - /usr/local/share/.cache/yarn/v1
+            - node_modules
+      - run:
+          name: Run tests
+          command: npm test
