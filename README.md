@@ -1,4 +1,6 @@
 ## Webpack Node Server Plugin
+
+[![Greenkeeper badge](https://badges.greenkeeper.io/blaugold/webpack-node-server-plugin.svg)](https://greenkeeper.io/)
 Webpack plugin which restarts node script with every compilation.
 
 ## Install
