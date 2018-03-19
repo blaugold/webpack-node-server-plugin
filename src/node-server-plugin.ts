@@ -1,7 +1,7 @@
+import { Observable, Subject } from '@reactivex/rxjs';
+import { ChildProcessModule } from './child_process';
 import { NodeServerPluginConfig } from './config';
 import { ProcessModule } from './process';
-import { ChildProcessModule } from './child_process';
-import { Subject, Observable } from '@reactivex/rxjs';
 
 export interface WebpackStats {
 
@@ -14,7 +14,9 @@ export interface WebpackStats {
   };
 
   toString(options: any): string;
+
   toJson(options: any): any;
+
 }
 
 /**
@@ -51,20 +53,20 @@ export class _NodeServerPlugin {
   }
 
   initFromConfig(config: any): void {
-    this.retries             = defaultNumber(config.retries, 3);
-    this.retryDelay          = defaultNumber(config.retryDelay, 1);
-    this.minUpTime           = defaultNumber(config.minUpTime, 10);
-    this.compilationDebounce = defaultNumber(config.compilationDebounce, 300);
+    this.retries             = defaultTo(config.retries, 3);
+    this.retryDelay          = defaultTo(config.retryDelay, 1);
+    this.minUpTime           = defaultTo(config.minUpTime, 10);
+    this.compilationDebounce = defaultTo(config.compilationDebounce, 300);
   }
 
   setupPipeline(): void {
     this.$pipeline = this.$onDone
       .debounceTime(this.compilationDebounce)
-      .let(this.getScriptPath())
+      .map(getFirstJSTargetBundlePath)
 
       // Do nothing if compilation produced no executable.
-      .filter(scriptPath => !!scriptPath)
-      .switchMap<string, void>(scriptPath => this.runScript(scriptPath));
+      .filter(bundlePath => !!bundlePath)
+      .switchMap<string, void>(bundlePath => this.runScript(bundlePath));
   }
 
   apply(compiler) {
@@ -94,16 +96,16 @@ export class _NodeServerPlugin {
     const $exitAfterMinUpTime = new Subject();
 
     return this.spawnScript(scriptPath)
-      // After minUpTime notify of a successful try, timer will be canceled when script fails.
+    // After minUpTime notify of a successful try, timer will be canceled when script fails.
       .switchMapTo(Observable.timer(this.minUpTime * 1000))
       .do(() => $exitAfterMinUpTime.next(true))
       .retryWhen(errors => errors
         // Notify of a failed try
-        .do(() => $exitAfterMinUpTime.next(false))
-        .let(this.shouldRetry($exitAfterMinUpTime))
+          .do(() => $exitAfterMinUpTime.next(false))
+          .let(this.shouldRetry($exitAfterMinUpTime))
 
-        // Delay next try
-        .delayWhen(() => Observable.timer(this.retryDelay * 1000))
+          // Delay next try
+          .delayWhen(() => Observable.timer(this.retryDelay * 1000))
       )
       // Process has run out of retries so either do nothing or stop observable by throwing.
       .catch<any, void>(err => this.watchMode ? Observable.empty() : Observable.throw(err));
@@ -125,16 +127,6 @@ export class _NodeServerPlugin {
       .mapTo<any, void>(void 0);
   }
 
-  getScriptPath(): (statsObs: Observable<WebpackStats>) => Observable<string> {
-    return statsObs => statsObs
-      .map(stats => stats.compilation.assets)
-      .map(assets => {
-        const bundleName = Object.keys(assets).filter(fileName => fileName.match(/\.js$/))[0];
-        return assets[bundleName];
-      })
-      .map(asset => asset.existsAt);
-  }
-
   spawnScript(path: string): Observable<any> {
     return new Observable(obs => {
       const childProcess = this.child_process.spawn('node', [path], { stdio: 'inherit' });
@@ -153,11 +145,22 @@ export class _NodeServerPlugin {
   }
 }
 
-function defaultNumber(option, def): number {
-  if (option === undefined) {
-    return def;
+function defaultTo<T>(value: T | null | undefined, defaultValue: T): T {
+  if (value === undefined || value === null) {
+    return defaultValue;
   }
-  return option;
+  return value;
+}
+
+export function getFirstJSTargetBundlePath(stats: WebpackStats): string | undefined {
+  const { compilation: { assets } } = stats;
+  const targets                     = Object.keys(assets);
+  const jsTargets                   = targets.filter(target => target.match(/\.js$/));
+  const firstJsTarget               = jsTargets[0];
+
+  if (firstJsTarget !== undefined) {
+    return assets[firstJsTarget].existsAt;
+  }
 }
 
 export class NodeServerPlugin extends _NodeServerPlugin {
