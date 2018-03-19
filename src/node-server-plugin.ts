@@ -44,6 +44,7 @@ export class _NodeServerPlugin {
   private retryDelay: number;
   private minUpTime: number;
   private compilationDebounce: number;
+  private killSignal: string;
 
   constructor(private process: ProcessModule,
               private child_process: ChildProcessModule, // tslint:disable-line
@@ -57,6 +58,7 @@ export class _NodeServerPlugin {
     this.retryDelay          = defaultTo(config.retryDelay, 1);
     this.minUpTime           = defaultTo(config.minUpTime, 10);
     this.compilationDebounce = defaultTo(config.compilationDebounce, 300);
+    this.killSignal          = defaultTo(config.killSignal, 'SIGKILL');
   }
 
   setupPipeline(): void {
@@ -140,7 +142,7 @@ export class _NodeServerPlugin {
       });
       obs.next();
 
-      return () => childProcess.kill('SIGTERM');
+      return () => childProcess.kill(this.killSignal);
     });
   }
 }

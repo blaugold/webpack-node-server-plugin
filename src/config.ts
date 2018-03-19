@@ -20,4 +20,9 @@ export interface NodeServerPluginConfig {
    */
   compilationDebounce?: number;
 
+  /**
+   * Signal sent to process when restarting. Default is `SIGKILL`.
+   */
+  killSignal?: string;
+
 }
