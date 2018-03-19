@@ -1,5 +1,5 @@
 
-const WebpackNodeServerPlugin = require('../../release');
+const NodeServerPlugin = require('../../release').NodeServerPlugin;
 
 module.exports = {
     target: 'node',
@@ -15,6 +15,6 @@ module.exports = {
     },
 
     plugins: [
-        new WebpackNodeServerPlugin()
+        new NodeServerPlugin()
     ]
 };

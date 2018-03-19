@@ -6,10 +6,23 @@ Webpack plugin which restarts node script with every compilation.
 npm i -D webpack-node-server-plugin
 ```
 
-## Config
-```javascript
-const WebpackNodeServerPlugin = require('webpack-node-server-plugin')
+## Usage
 
+Import the plugin trough `import` syntax:
+
+```javascript
+import { NodeServerPlugin } from 'webpack-node-server-plugin'
+```
+
+Or through `require`:
+
+```javascript
+const NodeServerPlugin = require('webpack-node-server-plugin').NodeServerPlugin;
+```
+
+And add it to your webpack config:
+
+```javascript
 module.exports = {
     target: 'node',
     entry: './server.js',
@@ -21,7 +34,7 @@ module.exports = {
         extensions: ['.js']
     },
     plugins: [
-        new WebpackNodeServerPlugin()
+        new NodeServerPlugin()
     ]
 }
 ```

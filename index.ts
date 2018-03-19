@@ -1,3 +1,2 @@
-import { NodeServerPlugin } from './src/node-server-plugin'
-
-export = NodeServerPlugin
+export { NodeServerPlugin } from './src/node-server-plugin'
+export { NodeServerPluginConfig } from './src/config'
