@@ -1,9 +1,9 @@
-/* tslint:disable */
-import { _NodeServerPlugin, WebpackStats } from './node-server-plugin';
+import { Subject } from '@reactivex/rxjs';
 import { expect } from 'chai';
 import * as sinon from 'sinon';
-import { Subject } from '@reactivex/rxjs';
-import { SinonSpy, SinonMock } from 'sinon'
+import { SinonMock, SinonSpy } from 'sinon';
+/* tslint:disable */
+import { _NodeServerPlugin, WebpackStats } from './node-server-plugin';
 
 class CompilerMock {
   runSyp   = sinon.spy();
@@ -73,7 +73,8 @@ const getMockStats = () => ({
       'test.bundle.js.map': { existsAt: '/dir/test.bundle.js.map' },
     },
   },
-});
+  toJson() { return '' }
+} as WebpackStats);
 
 let child_process;
 let child_processMock: SinonMock;
@@ -128,7 +129,7 @@ describe('NodeServerPlugin', () => {
       const childProcess = new ChildProcessMock();
       child_processMock.expects('spawn').once().returns(childProcess);
 
-      return plugin.spawnScript('/path')
+      return plugin.spawnScript(getMockStats())
         .mapTo('emit')
         .do(() => setTimeout(() => childProcess.$nextEvent.next({ event: 'close', message: 0 }), 0))
         .toPromise()
@@ -139,7 +140,7 @@ describe('NodeServerPlugin', () => {
       const childProcess = new ChildProcessMock();
       child_processMock.expects('spawn').once().returns(childProcess);
 
-      return plugin.spawnScript('/path')
+      return plugin.spawnScript(getMockStats())
         .do(() => setTimeout(() => childProcess.$nextEvent.next({ event: 'close', message: 1 }), 0))
         .toPromise()
         .then(() => {throw 'should not complete observable'})

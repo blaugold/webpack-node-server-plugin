@@ -39,6 +39,8 @@ module.exports = {
 }
 ```
 
+Per default the first `entry` with the extension `.js` is used when starting the server.
+
 ## Config
 
 Look at [`NodeServerPluginConfig`](src/config.ts) for config options.

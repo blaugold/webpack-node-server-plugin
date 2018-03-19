@@ -1,6 +1,7 @@
 import { Observable, Subject } from '@reactivex/rxjs';
+import { SpawnOptions } from 'child_process';
 import { ChildProcessModule } from './child_process';
-import { NodeServerPluginConfig } from './config';
+import { NodeServerPluginConfig, ScriptPathResolver } from './config';
 import { ProcessModule } from './process';
 
 export interface WebpackStats {
@@ -45,6 +46,10 @@ export class _NodeServerPlugin {
   private minUpTime: number;
   private compilationDebounce: number;
   private killSignal: string;
+  private command: string;
+  private spawnOptions: SpawnOptions;
+  private commandArgs: string[];
+  private scriptPathResolver: ScriptPathResolver;
 
   constructor(private process: ProcessModule,
               private child_process: ChildProcessModule, // tslint:disable-line
@@ -53,22 +58,30 @@ export class _NodeServerPlugin {
     this.setupPipeline();
   }
 
-  initFromConfig(config: any): void {
-    this.retries             = defaultTo(config.retries, 3);
-    this.retryDelay          = defaultTo(config.retryDelay, 1);
-    this.minUpTime           = defaultTo(config.minUpTime, 10);
-    this.compilationDebounce = defaultTo(config.compilationDebounce, 300);
-    this.killSignal          = defaultTo(config.killSignal, 'SIGKILL');
+  initFromConfig({
+                   retries, retryDelay, minUpTime, compilationDebounce, killSignal, command, commandArgs,
+                   scriptPathResolver, spawnOptions,
+                 }: NodeServerPluginConfig): void {
+    this.retries             = defaultTo(retries, 3);
+    this.retryDelay          = defaultTo(retryDelay, 1);
+    this.minUpTime           = defaultTo(minUpTime, 10);
+    this.compilationDebounce = defaultTo(compilationDebounce, 300);
+    this.killSignal          = defaultTo(killSignal, 'SIGKILL');
+    this.command             = defaultTo(command, 'node');
+    this.commandArgs         = defaultTo(commandArgs, []);
+    this.scriptPathResolver  = defaultTo(scriptPathResolver, getFirstJSTargetBundlePath);
+
+    this.spawnOptions = defaultTo(spawnOptions, {});
+
+    if (this.spawnOptions.stdio === undefined) {
+      this.spawnOptions.stdio = 'inherit';
+    }
   }
 
   setupPipeline(): void {
     this.$pipeline = this.$onDone
       .debounceTime(this.compilationDebounce)
-      .map(getFirstJSTargetBundlePath)
-
-      // Do nothing if compilation produced no executable.
-      .filter(bundlePath => !!bundlePath)
-      .switchMap<string, void>(bundlePath => this.runScript(bundlePath));
+      .switchMap(stats => this.runScript(stats));
   }
 
   apply(compiler) {
@@ -94,10 +107,10 @@ export class _NodeServerPlugin {
     this.watchMode = watch;
   }
 
-  runScript(scriptPath: string): Observable<void> {
+  runScript(stats: WebpackStats): Observable<void> {
     const $exitAfterMinUpTime = new Subject();
 
-    return this.spawnScript(scriptPath)
+    return this.spawnScript(stats)
     // After minUpTime notify of a successful try, timer will be canceled when script fails.
       .switchMapTo(Observable.timer(this.minUpTime * 1000))
       .do(() => $exitAfterMinUpTime.next(true))
@@ -129,17 +142,20 @@ export class _NodeServerPlugin {
       .mapTo<any, void>(void 0);
   }
 
-  spawnScript(path: string): Observable<any> {
+  spawnScript(stats: WebpackStats): Observable<any> {
     return new Observable(obs => {
-      const childProcess = this.child_process.spawn('node', [path], { stdio: 'inherit' });
-      childProcess.on('close', code => {
-        if (code !== 0) {
-          obs.error(code);
-          return;
-        }
+      const { command, spawnOptions } = this;
 
-        obs.complete();
-      });
+      const scriptPath = this.scriptPathResolver(stats);
+
+      const childProcess = this.child_process.spawn(
+        command,
+        [...this.commandArgs, scriptPath],
+        spawnOptions
+      );
+
+      childProcess.on('close', code => code !== 0 ? obs.error(code) : obs.complete());
+
       obs.next();
 
       return () => childProcess.kill(this.killSignal);

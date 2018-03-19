@@ -1,3 +1,8 @@
+import { SpawnOptions } from 'child_process';
+import { WebpackStats } from './node-server-plugin';
+
+export type ScriptPathResolver = (stats: WebpackStats) => string
+
 export interface NodeServerPluginConfig {
 
   /**
@@ -24,5 +29,33 @@ export interface NodeServerPluginConfig {
    * Signal sent to process when restarting. Default is `SIGKILL`.
    */
   killSignal?: string;
+
+  /**
+   * Command used when spawning the child process. Default is `node`.
+   */
+  command?: string;
+
+  /**
+   * Options used when spawning the child process. Per default `stdio` is set to `inherit`.
+   */
+  spawnOptions?: SpawnOptions;
+
+  /**
+   * Arguments given to spawned child process in addition to script path.
+   *
+   * The script path is appended to `commandArgs` before spawning.
+   *
+   * Useful for example to start node with `--inspect` flag.
+   */
+  commandArgs?: string[];
+
+  /**
+   * Function which is called after each compilation and takes `WebpackStats` and returns the path
+   * to the script to run.
+   *
+   * Defaults to `getFirstJSTargetBundlePath`, which uses the first build target with the
+   * extension `.js`.
+   */
+  scriptPathResolver?: ScriptPathResolver;
 
 }

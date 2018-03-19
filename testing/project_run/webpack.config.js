@@ -15,6 +15,9 @@ module.exports = {
     },
 
     plugins: [
-        new NodeServerPlugin()
+        new NodeServerPlugin({
+          commandArgs: ['--inspect'],
+          command: 'node'
+        })
     ]
 };

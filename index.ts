@@ -1,2 +1,2 @@
-export { NodeServerPlugin } from './src/node-server-plugin'
-export { NodeServerPluginConfig } from './src/config'
+export { NodeServerPlugin, WebpackStats,  getFirstJSTargetBundlePath } from './src/node-server-plugin'
+export { NodeServerPluginConfig, ScriptPathResolver } from './src/config'
