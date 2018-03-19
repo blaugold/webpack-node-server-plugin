@@ -1,6 +1,7 @@
 const nodeExternals = require('webpack-node-externals');
 const webpack = require('webpack');
 const WebpackMochaPlugin = require('webpack-mocha-plugin');
+const path = require('path');
 
 module.exports = {
     target: 'node',
@@ -10,7 +11,7 @@ module.exports = {
     },
 
     output: {
-        path: '.tmp/test',
+        path: path.resolve('.tmp/test'),
         filename: '[name].bundle.js'
     },
 
@@ -23,20 +24,15 @@ module.exports = {
     externals: [nodeExternals()],
 
     module: {
-        loaders: [
+        rules: [
             {
                 test: /\.ts$/,
-                enforce: 'pre',
-                loader: 'tslint'
-            },
-            {
-                test: /\.ts$/,
-                loader: 'awesome-typescript'
+                loader: 'awesome-typescript-loader'
             },
             {
                 enforce: 'post',
                 test: /\.(js|ts)$/,
-                loader: 'sourcemap-istanbul-instrumenter',
+                loader: 'sourcemap-istanbul-instrumenter-loader',
                 exclude: /\.(spec).(js|ts)/,
                 query: {
                     'force-sourcemap': true

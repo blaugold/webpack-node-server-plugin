@@ -1,7 +1,7 @@
 import { SpawnOptions } from 'child_process';
 import { WebpackStats } from './node-server-plugin';
 
-export type ScriptPathResolver = (stats: WebpackStats) => string
+export type ScriptPathResolver = (stats: WebpackStats) => string;
 
 export interface NodeServerPluginConfig {
 

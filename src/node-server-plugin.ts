@@ -26,8 +26,8 @@ export interface WebpackStats {
     assets: {
       [assetName: string]: {
         existsAt?: string;
-      }
-    }
+      },
+    },
   };
 
   toString(options: any): string;
@@ -97,7 +97,7 @@ export class _NodeServerPlugin {
   setupPipeline(): void {
     this.$pipeline = this.$onDone.pipe(
       debounceTime(this.compilationDebounce),
-      switchMap((stats: WebpackStats) => this.runScript(stats))
+      switchMap((stats: WebpackStats) => this.runScript(stats)),
     );
   }
 
@@ -125,7 +125,7 @@ export class _NodeServerPlugin {
   }
 
   runScript(stats: WebpackStats): Observable<{}> {
-    const $exitAfterMinUpTime = new Subject();
+    const $exitAfterMinUpTime = new Subject<boolean>();
 
     return this.spawnScript(stats).pipe(
       // After minUpTime notify of a successful try, timer will be canceled when script fails.
@@ -136,25 +136,25 @@ export class _NodeServerPlugin {
         tap(() => $exitAfterMinUpTime.next(false)),
         this.shouldRetry($exitAfterMinUpTime),
         // Delay next try
-        delayWhen(() => timer(this.retryDelay * 1000))
+        delayWhen(() => timer(this.retryDelay * 1000)),
       )),
       // Process has run out of retries so either do nothing or stop observable by throwing.
-      catchError(err => this.watchMode ? empty() : _throw(err))
+      catchError(err => this.watchMode ? empty() : _throw(err)),
     );
   }
 
-  shouldRetry($exitAfterMinUpTime: Observable<boolean>): (errors: Observable<number>) => Observable<{}> {
+  shouldRetry($exitAfterMinUpTime: Observable<boolean>): (errors: Observable<number>) => Observable<[number, boolean]> {
     const hasRetriesLeft = $exitAfterMinUpTime.pipe(
       scan<boolean, number>((retriesLeft, success) => success
         ? this.retries
-        : retriesLeft - 1, this.retries
+        : retriesLeft - 1, this.retries,
       ),
-      map(retriesLeft => retriesLeft >= 0)
+      map(retriesLeft => retriesLeft >= 0),
     );
 
     return errors => errors.pipe(
       withLatestFrom(hasRetriesLeft),
-      tap(([err, retry]) => {
+      tap(([err, retry]: [number, boolean]) => {
         if (!this.watchMode || !retry) {
           throw err;
         }
@@ -171,7 +171,7 @@ export class _NodeServerPlugin {
       const childProcess = this.child_process.spawn(
         command,
         [...this.commandArgs, scriptPath],
-        spawnOptions
+        spawnOptions,
       );
 
       childProcess.on('close', code => code !== 0 ? obs.error(code) : obs.complete());

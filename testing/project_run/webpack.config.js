@@ -1,4 +1,4 @@
-
+const path = require('path');
 const NodeServerPlugin = require('../../release').NodeServerPlugin;
 
 module.exports = {
@@ -10,7 +10,7 @@ module.exports = {
     },
 
     output: {
-        path: '.tmp/dev',
+        path: path.resolve('.tmp/dev'),
         filename: '[name].bundle.js'
     },
 

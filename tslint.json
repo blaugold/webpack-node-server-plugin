@@ -10,6 +10,8 @@
     "no-console": false,
     "member-access": false,
     "align": false,
-    "one-line": false
+    "one-line": false,
+    "arrow-parens": [false],
+    "max-classes-per-file": [false]
   }
 }
